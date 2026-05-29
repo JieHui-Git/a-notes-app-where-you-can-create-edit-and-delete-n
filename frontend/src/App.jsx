@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-function App() {
+const App = () => {
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [editableNoteId, setEditableNoteId] = useState(null);
 
   useEffect(() => {
     fetchNotes();
@@ -14,18 +16,20 @@ function App() {
       const response = await axios.get('http://localhost:3000/notes');
       setNotes(response.data);
     } catch (error) {
-      console.error("Error fetching notes:", error);
+      console.error('Error fetching notes:', error);
     }
   };
 
-  const addNote = async () => {
+  const addNote = async (e) => {
+    e.preventDefault();
     if (!newNote.trim()) return;
+
     try {
       await axios.post('http://localhost:3000/notes', { content: newNote });
       setNewNote('');
       fetchNotes();
     } catch (error) {
-      console.error("Error adding note:", error);
+      console.error('Error adding note:', error);
     }
   };
 
@@ -34,30 +38,53 @@ function App() {
       await axios.delete(`http://localhost:3000/notes/${id}`);
       fetchNotes();
     } catch (error) {
-      console.error("Error deleting note:", error);
+      console.error('Error deleting note:', error);
+    }
+  };
+
+  const startEdit = (noteId) => {
+    setEditMode(true);
+    setEditableNoteId(noteId);
+    const noteToEdit = notes.find(n => n.id === noteId);
+    if (noteToEdit) {
+      setNewNote(noteToEdit.content);
+    }
+  };
+
+  const updateNote = async () => {
+    try {
+      await axios.put(`http://localhost:3000/notes/${editableNoteId}`, { content: newNote });
+      setEditMode(false);
+      setNewNote('');
+      fetchNotes();
+    } catch (error) {
+      console.error('Error updating note:', error);
     }
   };
 
   return (
     <div>
       <h1>Notes App</h1>
-      <input
-        type="text"
-        value={newNote}
-        onChange={(e) => setNewNote(e.target.value)}
-        placeholder="Write a new note..."
-      />
-      <button onClick={addNote}>Add Note</button>
+      <form onSubmit={editMode ? updateNote : addNote}>
+        <input
+          type="text"
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          placeholder="Enter a note..."
+        />
+        <button type="submit">{editMode ? 'Update Note' : 'Add Note'}</button>
+      </form>
       <ul>
         {notes.map(note => (
           <li key={note.id}>
             {note.content}
+            <button onClick={() => startEdit(note.id)}>Edit</button>
             <button onClick={() => deleteNote(note.id)}>Delete</button>
           </li>
         ))}
       </ul>
     </div>
   );
-}
+};
 
 export default App;
