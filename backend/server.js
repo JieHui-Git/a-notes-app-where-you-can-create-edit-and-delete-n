@@ -1,46 +1,61 @@
 const express = require('express');
-const fs = require('fs-extra');
-const path = require('path');
-
 const app = express();
 const port = 3000;
-
-const notesFile = path.join(__dirname, 'notes.json');
+const fs = require('fs-extra');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 app.use(express.json());
 
-if (!fs.existsSync(notesFile)) {
-  fs.writeFileSync(notesFile, JSON.stringify([]));
-}
+let notes = [];
 
-function readNotes() {
-  return fs.readJSONSync(notesFile);
-}
+const dataPath = path.join(__dirname, 'notes.json');
 
-function writeNotes(notes) {
-  fs.writeJSONSync(notesFile, notes);
-}
+const loadNotes = async () => {
+  if (await fs.pathExists(dataPath)) {
+    const notesData = await fs.readFile(dataPath, 'utf-8');
+    notes = JSON.parse(notesData);
+  }
+};
+
+const saveNotes = async () => {
+  await fs.writeFile(dataPath, JSON.stringify(notes, null, 2));
+};
+
+loadNotes();
 
 app.get('/notes', (req, res) => {
-  const notes = readNotes();
   res.json(notes);
 });
 
 app.post('/notes', (req, res) => {
-  const notes = readNotes();
-  const newNote = { id: Date.now().toString(), content: req.body.content };
+  const { content } = req.body;
+  if (!content.trim()) return res.status(400).send('Note cannot be empty');
+  const newNote = { id: uuidv4(), content };
   notes.push(newNote);
-  writeNotes(notes);
-  res.status(201).json(newNote);
+  saveNotes();
+  res.json(newNote);
+});
+
+app.put('/notes/:id', (req, res) => {
+  const noteId = req.params.id;
+  const { content } = req.body;
+  if (!content.trim()) return res.status(400).send('Note cannot be empty');
+  const noteIndex = notes.findIndex(n => n.id === noteId);
+  if (noteIndex !== -1) {
+    notes[noteIndex].content = content;
+    saveNotes();
+    res.json(notes[noteIndex]);
+  } else {
+    res.status(404).send('Note not found');
+  }
 });
 
 app.delete('/notes/:id', (req, res) => {
-  const notes = readNotes();
-  const updatedNotes = notes.filter(note => note.id !== req.params.id);
-  writeNotes(updatedNotes);
-  res.status(204).send();
+  const noteId = req.params.id;
+  notes = notes.filter(n => n.id !== noteId);
+  saveNotes();
+  res.sendStatus(204);
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
+app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
